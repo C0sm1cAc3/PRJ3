@@ -53,7 +53,7 @@ int get_pwm_for_motor(int target_motor, float target_rpm) {
 
 void motor_control(int target_motor, int direction, int power) {
   // Convert power (0–100%) into target RPM
-  float target_rpm = map(power, 0, 100, 0, 118.5); // scale to lowest max RPM
+  float target_rpm = (power / 100.0) * 118.5; // scale to lowest max RPM
   int pwm_value = get_pwm_for_motor(target_motor, target_rpm);
 
   int in1, in2, en;
