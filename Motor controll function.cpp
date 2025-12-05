@@ -1,11 +1,23 @@
 #include <Arduino.h>
 
+int DC_Driver_A_In1 = 1;
+int DC_Driver_A_In2 = 1;
+int DC_Driver_A_In3 = 1;
+int DC_Driver_A_In4 = 1;
+int DC_Driver_B_In1 = 1;
+int DC_Driver_B_In2 = 1;
+int DC_Driver_B_In3 = 1;
+int DC_Driver_B_In4 = 1;
+int DC_Driver_A_EnA = 1;
+int DC_Driver_A_EnB = 1;
+int DC_Driver_B_EnA = 1;
+int DC_Driver_B_EnB = 1; 
+
 const int pwm_values[] = {64, 128, 192, 255};
 const float rpm_values_A[] = {40.5, 94.5, 114.0, 129.0};
 const float rpm_values_B[] = {34.5, 82.02, 102.0, 118.5};
 const float rpm_values_C[] = {36.0, 90.0, 112.5, 118.5};
 const float rpm_values_D[] = {37.5, 90.0, 120.0, 136.5};
-
 
 const int motor_A = 1;
 const int motor_B = 2;
@@ -39,12 +51,26 @@ int get_pwm_for_motor(int target_motor, float target_rpm) {
   return pwm_values[3];
 }
 
-
-
 void motor_control(int target_motor, int direction, int power ){
-    get_pwm_for_motor(target_motor, map(power, 0, 100, 0, 118.5));
+    get_pwm_for_motor(target_motor, map(power, 0, 100, 0, 118.5)); //118.5 is the lowest max RPM from the motors
 }
 
 void setup(){
+    pinMode(DC_Driver_A_In1, OUTPUT);
+    pinMode(DC_Driver_A_In2, OUTPUT);
+    pinMode(DC_Driver_A_In3, OUTPUT);
+    pinMode(DC_Driver_A_In4, OUTPUT);
+    pinMode(DC_Driver_B_In1, OUTPUT);
+    pinMode(DC_Driver_B_In2, OUTPUT);
+    pinMode(DC_Driver_B_In3, OUTPUT);
+    pinMode(DC_Driver_B_In4, OUTPUT);
+    pinMode(DC_Driver_A_EnA, OUTPUT);
+    pinMode(DC_Driver_A_EnB, OUTPUT);
+    pinMode(DC_Driver_B_EnA, OUTPUT);
+    pinMode(DC_Driver_B_EnB, OUTPUT);
+
+
+
+
     motor_control(motor_A, forwards, 100); //should send motor A forwards with 100% power
 }
