@@ -51,8 +51,55 @@ int get_pwm_for_motor(int target_motor, float target_rpm) {
   return pwm_values[3];
 }
 
-void motor_control(int target_motor, int direction, int power ){
-    get_pwm_for_motor(target_motor, map(power, 0, 100, 0, 118.5)); //118.5 is the lowest max RPM from the motors
+void motor_control(int target_motor, int direction, int power) {
+  // Convert power (0–100%) into target RPM
+  float target_rpm = map(power, 0, 100, 0, 118.5); // scale to lowest max RPM
+  int pwm_value = get_pwm_for_motor(target_motor, target_rpm);
+
+  int in1, in2, en;
+
+  // Map motor ID to driver pins
+  switch (target_motor) {
+    case motor_A:
+      in1 = DC_Driver_A_In1;
+      in2 = DC_Driver_A_In2;
+      en  = DC_Driver_A_EnA;
+      break;
+    case motor_B:
+      in1 = DC_Driver_A_In3;
+      in2 = DC_Driver_A_In4;
+      en  = DC_Driver_A_EnB;
+      break;
+    case motor_C:
+      in1 = DC_Driver_B_In1;
+      in2 = DC_Driver_B_In2;
+      en  = DC_Driver_B_EnA;
+      break;
+    case motor_D:
+      in1 = DC_Driver_B_In3;
+      in2 = DC_Driver_B_In4;
+      en  = DC_Driver_B_EnB;
+      break;
+    default:
+      return; // invalid motor
+  }
+
+  // Set direction
+  if (direction == forwards) {
+    digitalWrite(in1, HIGH);
+    digitalWrite(in2, LOW);
+  } else if (direction == backwards) {
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, HIGH);
+  } else {
+    // stop motor if invalid direction
+    digitalWrite(in1, LOW);
+    digitalWrite(in2, LOW);
+    pwm_value = 0;
+  }
+
+  // Apply PWM
+  analogWrite(en, pwm_value);
 }
 
 void setup(){
