@@ -42,7 +42,7 @@ int get_pwm_for_motor(int target_motor, float target_rpm) {
 
 
 void motor_control(int target_motor, int direction, int power ){
-    get_pwm_for_motor(target_motor, power);
+    get_pwm_for_motor(target_motor, map(power, 0, 100, 0, 118.5));
 }
 
 void setup(){
