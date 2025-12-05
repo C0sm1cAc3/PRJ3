@@ -1,0 +1,497 @@
+#include <Arduino.h>
+
+// Define function prototypes
+void controlMotors(bool leftForward, bool rightForward, int leftSpeed, int rightSpeed);
+void rgbLED();
+void getSensorData();
+void determineAction();
+void takeAction();
+void driveStraight();
+void turnLeft();
+void turnRight();
+void slightLeft();
+void slightRight();
+void sharpLeft();
+void sharpRight();
+void findLine();
+
+// Define pins sensors
+const int sensorLeft = 5;
+const int sensorLeftMid = 4;
+const int sensorRightMid = 3;
+const int sensorRight = 2;
+
+int left = 0;
+int leftMid = 0;
+int rightMid = 0;
+int right = 0;
+
+// Define pins motor driver
+const int motorDriverIn1 = 22; // In1 and In2 for motor A on the left
+const int motorDriverIn2 = 23;
+const int motorDriverIn3 = 24; // In3 and In4 for motor B on the left
+const int motorDriverIn4 = 25;
+const int motorDriverENA = 9; // Left side is motor A
+const int motorDriverENB = 10; // Right side is motor B, this one is slightly less powerfull
+
+// Define variables
+int allSensorData;
+int determinedAction; // 1 = straight | 2 = left | 3 = right | 4 = pause/stop | 5 = error | 6 = slight left | 7 = slight right | 8 = sharp left | 9 = sharp right
+
+// Define variables used for detecting pause
+bool firstBlackLine = false;
+bool whiteLine = false;
+
+// Define variables used for timer
+int currentTime  = 0;
+int startTime = 0; 
+bool timerOn = false;
+
+// Define variables used for confirming sensor input (checking if sensor input stays the same)
+int goLeftCounter = 0;
+int goRightCounter = 0;
+int threshold = 5; 
+
+// Variables used for clarity of switch case, "v" used to avoid issues with functions with the same name
+int vStraight = 1;
+int vLeft = 2;
+int vRight = 3;
+int vPauzeStop = 4; 
+int vError = 5;
+int vSlightLeft = 6;
+int vSlightRight = 7;
+int vSharpLeft = 8;
+int vSharpRight = 9;
+
+// Variables used for clarity of rgbLED case
+int red = 1;
+int green = 2; 
+int blue = 3;
+int off = 4;
+
+// Define pins for rdgLED
+const int redPin = 27;
+const int greenPin = 29;
+const int bluePin = 31;
+
+// Void to control motors
+void controlMotors(bool leftForward, bool rightForward, int leftSpeed, int rightSpeed){
+  if(leftForward){
+    digitalWrite(motorDriverIn1, HIGH); // Determines direction of motors
+    digitalWrite(motorDriverIn2, LOW);
+  }
+  else{
+    digitalWrite(motorDriverIn1, LOW); // Determines direction of motors 
+    digitalWrite(motorDriverIn2, HIGH);
+  }
+
+  if(rightForward){
+    digitalWrite(motorDriverIn3, HIGH); // Determines direction of motors 
+    digitalWrite(motorDriverIn4, LOW);
+  }
+  else{
+    digitalWrite(motorDriverIn3, LOW); // Determines direction of motors 
+    digitalWrite(motorDriverIn4, HIGH);
+  }
+
+  analogWrite(motorDriverENA, leftSpeed); // Determines speed of motors
+  analogWrite(motorDriverENB, rightSpeed); 
+}
+
+void rgbLED(int colour){
+  if (colour == red){
+    digitalWrite(redPin, LOW);
+    digitalWrite(greenPin, HIGH);
+    digitalWrite(bluePin, HIGH);
+  }
+  if (colour == green){
+    digitalWrite(redPin, HIGH);
+    digitalWrite(greenPin, LOW);
+    digitalWrite(bluePin, HIGH);
+  }
+  if (colour == blue){
+    digitalWrite(redPin, HIGH);
+    digitalWrite(greenPin, HIGH);
+    digitalWrite(bluePin, LOW);
+  }
+  if (colour == off){
+    digitalWrite(redPin, HIGH);
+    digitalWrite(greenPin, HIGH);
+    digitalWrite(bluePin, HIGH);
+  }
+}
+
+// Action functions
+void driveStraight(){
+  Serial.println("Going  Straight");
+  controlMotors(true, true, 60, 60); // Both motors forward at this speed
+
+  // If a blackline has been detected (within the last x seconds), start looking for a whiteline
+  if (firstBlackLine == true && whiteLine == false){
+    whiteLine = true;
+    Serial.println("whiteLine = true;");
+  }
+}
+void turnLeft(){
+  Serial.println("Trying to turn left");
+
+  controlMotors(true, true, 0, 0); // Slow down car before determining what to do, directions of motors do not matter
+
+  do{ // Check if we really need to turn left
+    getSensorData();
+    determineAction();
+    Serial.println(allSensorData, BIN);
+    if (determinedAction == 2){
+      goLeftCounter++;
+    }
+    else{
+      Serial.println("Turning left denied");
+      goLeftCounter = 0;
+      break;
+    }
+  }while (goLeftCounter < threshold);
+
+  if (goLeftCounter >= threshold){
+    delay(150); // idk why this delay is here
+    goLeftCounter = 0;
+
+    Serial.println("Turning left");
+
+    controlMotors(false, true, 100, 75); // 
+
+    do{ // Keep turning untill these conditions are met
+      getSensorData();
+    } while (allSensorData != 0b0100 && allSensorData != 0b1111);
+
+  }
+}
+void turnRight(){
+  Serial.println("Trying to turn right");
+
+  controlMotors(true, true, 0, 0); // Slow down car before determining what to do, directions of motors do not matter
+
+  do{ // Check if we really need to turn right
+    getSensorData();
+    determineAction();
+    if (determinedAction == 3){
+      goRightCounter++;
+    }
+    else{
+      Serial.print("Turning right denied");
+      goRightCounter = 0;
+      break;
+    }
+  }while (goRightCounter < threshold);
+
+  if (goRightCounter >= threshold){
+    delay(150); // Idk why this delay is here
+    goRightCounter = 0;
+    Serial.println("Turning right");
+
+    controlMotors(true, false, 100, 75);
+
+    do{ // Keep turning untill these conditions are met
+      getSensorData();
+    } while (allSensorData != 0b0100 && allSensorData != 0b1111);
+  }
+}
+void pauseOrStop(){
+  // If we haven't detected a blackline yet, detect it now and start the timer
+  Serial.println("Pauze or stop");
+
+  if (firstBlackLine == false){ // Turn bool true and start timer
+    Serial.println("firstBlackLine = true");
+    firstBlackLine = true;
+    startTime = millis();
+    timerOn = true;
+  }
+
+  // If the whiteline has already been detected, start the pause
+  if (whiteLine == true){
+    Serial.println("whiteLine = true, initiating pause");
+    delay(50); // This delay controls how far the car will keep driving, this is done to insure the middle of the car lines up correctly
+    controlMotors(true, true, 0, 0); // stop the car, directions of motors doesn't matter
+
+    rgbLED(blue);
+    delay(5000); // 5 second pause
+    Serial.println("pauze ended, resetting bools");
+    rgbLED(green);
+
+    firstBlackLine = false; // Reset bools so we can start fresh on detecting the next pause
+    whiteLine = false; 
+  }
+
+}
+void slightLeft(){
+  Serial.println("Slight left");
+  controlMotors(false, true, 50, 100);
+}
+void slightRight(){
+  Serial.println("Slight right");
+  controlMotors(true, false, 100, 50);
+}
+void sharpLeft(){
+  Serial.println("Trying sharp left");
+
+  do{ // Check if we really need to turn
+    getSensorData();
+    determineAction();
+    if (determinedAction == 8){
+      goLeftCounter++;
+    }
+    else{
+      Serial.println("Sharp left denied");
+      goLeftCounter = 0;
+      break;
+    }
+  }while (goLeftCounter < threshold);
+
+  if (goLeftCounter >= threshold){
+    goLeftCounter = 0;
+
+    Serial.print("Turn confirmed, driving forward");
+    controlMotors(true, true, 75, 75); // Go forward a bit so we don't accidentally hit the edge of the corner
+    delay(125);
+
+    Serial.println("Slowing down");
+    controlMotors(true, true, 0, 0); // Stop the car before attempting the turn, motor direction does not matter
+    delay(750); // Delay to make sure we come to a complete stop
+
+    Serial.println("Turning");
+    controlMotors(false, true, 75, 100);
+
+    do{ //Turn untill these conditions are met
+      getSensorData();
+    } while (allSensorData != 0b0100 && allSensorData != 0b1111);
+    Serial.println("End of turn detected");
+  }
+}
+void sharpRight(){
+  Serial.println("Trying sharp right");
+
+  do{ // Check if we really need to turn
+    getSensorData();
+    determineAction();
+    if (determinedAction == 9){
+      goRightCounter++;
+    }
+    else{
+      Serial.print("Sharp right Denied");
+      goRightCounter = 0;
+      break;
+    }
+  }while (goRightCounter < threshold);
+
+  if (goRightCounter >= threshold){
+    goRightCounter = 0;
+
+    Serial.print("Turn confirmed, driving forward");
+    controlMotors(true, true, 75, 75); // Go forward a bit so we don't accidentally hit the edge of the corner
+    delay(125);
+
+    Serial.println("Slowing down");
+    controlMotors(true, true, 0, 0); // Stop the car before attempting the turn, motor direction does not matter
+    delay(750); // Delay to make sure we come to a complete stop
+
+    Serial.println("Turning");
+    controlMotors(true, false, 100, 75);
+
+    do{ //Turn untill these conditions are met
+      getSensorData();
+    } while (allSensorData != 0b0100 && allSensorData != 0b1111);
+    Serial.println("End of turn detected");
+  }
+}
+
+// Get all sensor input
+void getSensorData(){
+    // Read all sensors
+  int left = 1 - digitalRead(sensorLeft); // Code assumes sensor reading black line is 1
+  int leftMid = 1 - digitalRead(sensorLeftMid); // If sensor reading black line is 0: add 1 - in front
+  int rightMid = 1 - digitalRead(sensorRightMid); // This changes 1 to 0 and 0 to 1
+  int right = 1 - digitalRead(sensorRight);
+
+  // Print sensor values
+  Serial.print("L: "); Serial.print(left);
+  Serial.print(" LM: "); Serial.print(leftMid);
+  Serial.print(" RM: "); Serial.print(rightMid);
+  Serial.print(" R: "); Serial.println(right);
+
+  // Combine all sensor values into one string
+  allSensorData = (left << 3) | (leftMid << 2) | (rightMid << 1) | right;
+
+  /*for (int i = 3; i >= 0; i--) {
+  Serial.print(bitRead(allSensorData, i));
+  }
+  Serial.println();*/
+
+}
+
+//Determine what action we want to take based on the sensor data
+void determineAction(){
+  switch (allSensorData){ 
+    case 0b0000:
+      determinedAction = vStraight; 
+      break;
+    case 0b0001:
+      determinedAction = vSharpRight;
+      break;
+    case 0b0010:
+      determinedAction = vSlightRight;
+      break;
+    case 0b0011:
+      determinedAction = vRight;
+      break;
+    case 0b0100:
+      determinedAction = vSlightLeft;
+      break;
+    case 0b0101:
+      determinedAction = vSharpRight;
+      break;
+    case 0b0110:
+      determinedAction = vError;
+      break;
+    case 0b0111:
+      determinedAction = vRight;
+      break;
+    case 0b1000:
+      determinedAction = vSharpLeft;
+      break;
+    case 0b1001:
+      determinedAction = vError;
+      break;
+    case 0b1010:
+      determinedAction = vSharpLeft;
+      break;
+    case 0b1011:
+      determinedAction = vError;
+      break;
+    case 0b1100:
+      determinedAction = vLeft;
+      break;
+    case 0b1101:
+      determinedAction = vError;
+      break;
+    case 0b1110:
+      determinedAction = vLeft;
+      break;
+    case 0b1111:
+      determinedAction = vPauzeStop;
+      break;
+    default:
+      Serial.print("Invalid case input");
+      break;    
+  }
+
+  //print result of switchcase
+  /*Serial.print("Action determined: ");
+  Serial.println(determinedAction);*/
+}
+
+// Take the predetermined action
+void takeAction(){
+  switch (determinedAction){
+    case 1: // Straight
+      driveStraight();
+      break;
+    case 2: // Left
+      if (timerOn == false){
+        turnLeft();
+      }
+      break;
+    case 3: // Right
+      if (timerOn == false){
+        turnRight();
+      }
+      break;
+    case 4: // Pause/Stop
+      pauseOrStop();
+      break;
+    case 5: // Error
+      break;
+    case 6: // Slight left
+      slightLeft();
+      break;
+    case 7: // Slight right
+      slightRight();
+      break;
+    case 8: // Sharp left
+      if(!timerOn){
+        sharpLeft();
+      }
+      break;
+    case 9: // Sharp right
+      if(!timerOn){
+        sharpRight();
+      }
+      break;
+    default: 
+      break;
+  }
+}
+
+void setup() {
+  Serial.begin(9600);
+  Serial.println("Start");
+
+  // Set sensor pins as input
+  pinMode(sensorLeft, INPUT);
+  pinMode(sensorLeftMid, INPUT);
+  pinMode(sensorRightMid, INPUT);
+  pinMode(sensorRight, INPUT);
+
+  // Set motor driver pins as output
+  pinMode(motorDriverIn1, OUTPUT);
+  pinMode(motorDriverIn2, OUTPUT);
+  pinMode(motorDriverIn3, OUTPUT);
+  pinMode(motorDriverIn4, OUTPUT);
+  pinMode(motorDriverENA, OUTPUT);
+  pinMode(motorDriverENB, OUTPUT);
+
+  pinMode(redPin, OUTPUT);
+  pinMode(greenPin, OUTPUT);
+  pinMode(bluePin, OUTPUT);
+  
+  rgbLED(red);
+  delay(5000);
+  rgbLED(blue);
+  controlMotors(true, true, 55, 55); // Drive forward from the start
+  delay(1000);
+  rgbLED(green);
+}
+
+void loop() {
+  delay(100);
+  currentTime = millis();
+
+  // If the timer is on, check if it has been on for 0.75s, 
+  if (timerOn == true && currentTime - startTime > 500){
+    firstBlackLine = false;
+    whiteLine = false; 
+    timerOn = false;
+    Serial.println("Timer ended, bools reset");
+    
+    // If we're still on black after the timer, it must mean we reached the end
+    getSensorData();
+    if (allSensorData == 0b1111){
+      rgbLED(red);
+      Serial.println("End reached");
+      delay(100);
+      controlMotors(true, true, 0, 0);
+      while(true){
+        rgbLED(off);
+        delay(100);
+        rgbLED(red);
+        delay(100);
+      }
+    }
+    else{
+      rgbLED(green);
+    }
+  }
+
+  getSensorData();
+  determineAction();
+  takeAction();
+
+}
