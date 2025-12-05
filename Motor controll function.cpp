@@ -119,5 +119,8 @@ void setup(){
 
 
 
-    motor_control(motor_A, forwards, 100); //should send motor A forwards with 100% power
+    motor_control(motor_A, forwards, 50); //should send motor A forwards with 50% power
+    motor_control(motor_B, forwards, 50);
+    motor_control(motor_C, forwards, 50);
+    motor_control(motor_D, forwards, 50);
 }
